@@ -449,17 +449,21 @@ in rec {
     ];
 
   queryToScope = { repos ? [ opamRepository ], pkgs ? bootstrapPackages
-    , overlays ? __overlays, resolveArgs ? { }, defs ? { } }:
+    , overlays ? __overlays, resolveArgs ? { }, defs ? { }, useOpamList ? true }:
     query:
-    pipe query [
-      (opamList (joinRepos repos) resolveArgs)
-      (opamListToQuery)
+    let opamListSteps =
+      if useOpamList then
+      [
+        (opamList (joinRepos repos) resolveArgs)
+        (opamListToQuery)
+      ] else []; in
+    pipe query (opamListSteps ++ [
       (queryToDefs repos)
       (queried: queried // defs)
       (defsToScope pkgs resolveArgs.env or { })
       (applyOverlays overlays)
       (applyChecksDocs resolveArgs query)
-    ];
+    ]);
 
   opamImport = { repos ? [ opamRepository ], pkgs ? bootstrapPackages
     , resolveArgs ? { }, overlays ? __overlays }:
@@ -485,7 +489,7 @@ in rec {
 
   buildOpamProject = { repos ? [ opamRepository ], pkgs ? bootstrapPackages
     , overlays ? __overlays, resolveArgs ? { }, pinDepends ? true
-    , recursive ? false, defs ? { } }:
+    , recursive ? false, defs ? { }, useOpamList ? true }:
     name: project: query:
     let
       repo = makeOpamRepo' recursive project;
@@ -497,12 +501,12 @@ in rec {
       repos = [ repo ] ++ optionals pinDepends pinDeps ++ repos;
       overlays = overlays;
       resolveArgs = { dev = true; } // resolveArgs;
-      inherit pkgs defs;
+      inherit pkgs defs useOpamList;
     } ({ ${name} = latestVersions.${name}; } // query);
 
   buildOpamProject' = { repos ? [ opamRepository ], pkgs ? bootstrapPackages
     , overlays ? __overlays, resolveArgs ? { }, pinDepends ? true
-    , recursive ? false, defs ? { } }:
+    , recursive ? false, defs ? { }, useOpamList ? true }:
     project: query:
     let
       repo = makeOpamRepo' recursive project;
@@ -515,7 +519,7 @@ in rec {
       repos = [ repo ] ++ optionals pinDepends pinDeps ++ repos;
       overlays = overlays;
       resolveArgs = { dev = true; } // resolveArgs;
-      inherit pkgs defs;
+      inherit pkgs defs useOpamList;
     } (latestVersions // query);
 
   buildDuneProject =
