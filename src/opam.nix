@@ -449,12 +449,13 @@ in rec {
     ];
 
   queryToScope = { repos ? [ opamRepository ], pkgs ? bootstrapPackages
-    , overlays ? __overlays, resolveArgs ? { } }:
+    , overlays ? __overlays, resolveArgs ? { }, defs ? { } }:
     query:
     pipe query [
       (opamList (joinRepos repos) resolveArgs)
       (opamListToQuery)
       (queryToDefs repos)
+      (queried: queried // defs)
       (defsToScope pkgs resolveArgs.env or { })
       (applyOverlays overlays)
       (applyChecksDocs resolveArgs query)
@@ -484,7 +485,7 @@ in rec {
 
   buildOpamProject = { repos ? [ opamRepository ], pkgs ? bootstrapPackages
     , overlays ? __overlays, resolveArgs ? { }, pinDepends ? true
-    , recursive ? false }@args:
+    , recursive ? false, defs ? { } }:
     name: project: query:
     let
       repo = makeOpamRepo' recursive project;
@@ -496,12 +497,12 @@ in rec {
       repos = [ repo ] ++ optionals pinDepends pinDeps ++ repos;
       overlays = overlays;
       resolveArgs = { dev = true; } // resolveArgs;
-      inherit pkgs;
+      inherit pkgs defs;
     } ({ ${name} = latestVersions.${name}; } // query);
 
   buildOpamProject' = { repos ? [ opamRepository ], pkgs ? bootstrapPackages
     , overlays ? __overlays, resolveArgs ? { }, pinDepends ? true
-    , recursive ? false }@args:
+    , recursive ? false, defs ? { } }:
     project: query:
     let
       repo = makeOpamRepo' recursive project;
@@ -514,7 +515,7 @@ in rec {
       repos = [ repo ] ++ optionals pinDepends pinDeps ++ repos;
       overlays = overlays;
       resolveArgs = { dev = true; } // resolveArgs;
-      inherit pkgs;
+      inherit pkgs defs;
     } (latestVersions // query);
 
   buildDuneProject =
