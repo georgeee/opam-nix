@@ -204,7 +204,7 @@ in rec {
 
     in lines solution;
 
-  makeOpamRepo' = recursive: dir:
+  makeOpamRepo' = opamCache: recursive: dir:
     let
       contents = readDir dir;
       files = if recursive then
@@ -222,7 +222,10 @@ in rec {
           fileName = last path';
           dirName =
             splitNameVer (if init path' != [ ] then last (init path') else "");
-          parsedOPAM = importOpam opamFile;
+          parsedOPAM =
+            if builtins.hasAttr opamPath opamCache then
+              builtins.getAttr opamPath opamCache
+            else importOpam opamFile;
           name = parsedOPAM.name or (if hasSuffix ".opam" fileName then
             removeSuffix ".opam" fileName
           else
@@ -235,7 +238,8 @@ in rec {
           subdir = "/" + concatStringsSep "/" (let i = init path';
           in if length i > 0 && last i == "opam" then init i else i);
           source = dir + subdir;
-          opamFile = "${dir + ("/" + (concatStringsSep "/" path'))}";
+          opamPath = concatStringsSep "/" path';
+          opamFile = "${dir + ("/" + opamPath)}";
           opamFileContents = readFile opamFile;
         }]) opamFilesOnly));
       repo-description =
@@ -258,8 +262,8 @@ in rec {
       repo = linkFarm "opam-repo" ([ repo-description ] ++ opamFileLinks);
     in repo // { passthru = { inherit sourceMap pkgdefs; }; };
 
-  makeOpamRepo = makeOpamRepo' false;
-  makeOpamRepoRec = makeOpamRepo' true;
+  makeOpamRepo = makeOpamRepo' {} false;
+  makeOpamRepoRec = makeOpamRepo' {} true;
 
   filterOpamRepo = packages: repo:
     linkFarm "opam-repo" ([ (namePathPair "repo" "${repo}/repo") ] ++ attrValues
@@ -400,7 +404,7 @@ in rec {
     , regenCommand ? null, pinDepends ? true, recursive ? false }:
     name: project: query:
     let
-      repo = makeOpamRepo' recursive project;
+      repo = makeOpamRepo' {} recursive project;
       latestVersions = mapAttrs (_: last) (listRepo repo);
 
       pinDeps =
@@ -415,7 +419,7 @@ in rec {
     , regenCommand ? null, pinDepends ? true, recursive ? false }:
     project: query:
     let
-      repo = makeOpamRepo' recursive project;
+      repo = makeOpamRepo' {} recursive project;
       latestVersions = mapAttrs (_: last) (listRepo repo);
 
       pinDeps = concatLists (attrValues (mapAttrs
@@ -489,10 +493,10 @@ in rec {
 
   buildOpamProject = { repos ? [ opamRepository ], pkgs ? bootstrapPackages
     , overlays ? __overlays, resolveArgs ? { }, pinDepends ? true
-    , recursive ? false, defs ? { }, useOpamList ? true }:
+    , recursive ? false, defs ? { }, useOpamList ? true, opamCache ? {} }:
     name: project: query:
     let
-      repo = makeOpamRepo' recursive project;
+      repo = makeOpamRepo' opamCache recursive project;
       latestVersions = mapAttrs (_: last) (listRepo repo);
 
       pinDeps =
@@ -506,10 +510,10 @@ in rec {
 
   buildOpamProject' = { repos ? [ opamRepository ], pkgs ? bootstrapPackages
     , overlays ? __overlays, resolveArgs ? { }, pinDepends ? true
-    , recursive ? false, defs ? { }, useOpamList ? true }:
+    , recursive ? false, defs ? { }, useOpamList ? true, opamCache ? {} }:
     project: query:
     let
-      repo = makeOpamRepo' recursive project;
+      repo = makeOpamRepo' opamCache recursive project;
       latestVersions = mapAttrs (_: last) (listRepo repo);
 
       pinDeps = concatLists (attrValues (mapAttrs
@@ -631,7 +635,7 @@ in rec {
     , extraFilterPkgs ? [ ] }@args:
     project: query:
     let
-      repo = makeOpamRepo' recursive project;
+      repo = makeOpamRepo' {} recursive project;
       latestVersions = mapAttrs (_: last) (listRepo repo);
 
       pinDeps = concatLists (attrValues (mapAttrs
